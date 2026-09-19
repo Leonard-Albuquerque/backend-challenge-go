@@ -212,9 +212,10 @@ func (m *memStore) Add(_ context.Context, ev events.Event) error {
 func (m *memStore) Claim(context.Context, string, time.Time, time.Duration, int) ([]OutboxRecord, error) {
 	return nil, nil
 }
-func (m *memStore) MarkPublished(context.Context, uuid.UUID, time.Time) error      { return nil }
-func (m *memStore) Reschedule(context.Context, uuid.UUID, time.Time, string) error { return nil }
-func (m *memStore) Lag(context.Context, time.Time) (time.Duration, int64, error)   { return 0, 0, nil }
+func (m *memStore) MarkPublished(context.Context, uuid.UUID, time.Time) error        { return nil }
+func (m *memStore) MarkPublishedBatch(context.Context, []uuid.UUID, time.Time) error { return nil }
+func (m *memStore) Reschedule(context.Context, uuid.UUID, time.Time, string) error   { return nil }
+func (m *memStore) Lag(context.Context, time.Time) (time.Duration, int64, error)     { return 0, 0, nil }
 
 func (m *memStore) Record(_ context.Context, consumer, id, hash string, _ time.Time) (InboxResult, error) {
 	k := consumer + "/" + id

@@ -13,10 +13,15 @@ import (
 	"github.com/jamesmachome/backend-challenge-go/internal/app"
 )
 
-// EventPublisher sends a claimed outbox record to the broker.
+// EventPublisher sends claimed outbox records to the broker.
 type EventPublisher interface {
 	Publish(ctx context.Context, rec app.OutboxRecord) error
+	// PublishBatch sends up to 10 records in one call. It returns the ids
+	// accepted by the broker, per-record failures, or a whole-call error.
+	PublishBatch(ctx context.Context, recs []app.OutboxRecord) (published []uuid.UUID, failed map[uuid.UUID]error, err error)
 }
+
+const sqsBatchLimit = 10
 
 // OutboxMetrics is what the publisher reports.
 type OutboxMetrics interface {
@@ -111,27 +116,76 @@ func (p *OutboxPublisher) tick(ctx context.Context) bool {
 	if p.cfg.CrashAfterClaim != nil {
 		p.cfg.CrashAfterClaim()
 	}
-	for _, rec := range batch {
+	for start := 0; start < len(batch); start += sqsBatchLimit {
 		if ctx.Err() != nil {
 			// Leave the lease to expire; another instance will take over.
 			return false
 		}
-		p.publishOne(ctx, rec)
+		end := start + sqsBatchLimit
+		if end > len(batch) {
+			end = len(batch)
+		}
+		p.publishChunk(ctx, batch[start:end])
 	}
 	return len(batch) == p.cfg.BatchSize
+}
+
+// publishChunk publishes up to 10 records with one broker call and one
+// acknowledgement transaction. A whole-call failure falls back to per-record
+// publishing so a single poisoned payload cannot block the others.
+func (p *OutboxPublisher) publishChunk(ctx context.Context, recs []app.OutboxRecord) {
+	if len(recs) == 1 {
+		p.publishOne(ctx, recs[0])
+		return
+	}
+	published, failed, err := p.publisher.PublishBatch(ctx, recs)
+	if err != nil {
+		p.log.Warn("batch publish failed; falling back to single sends", "error", err.Error())
+		p.metrics.Retry("outbox_publish")
+		for _, rec := range recs {
+			p.publishOne(ctx, rec)
+		}
+		return
+	}
+	byID := map[uuid.UUID]app.OutboxRecord{}
+	for _, rec := range recs {
+		byID[rec.EventID] = rec
+	}
+	for id, ferr := range failed {
+		p.reschedule(ctx, byID[id], ferr)
+	}
+	if len(published) == 0 {
+		return
+	}
+	if p.cfg.CrashAfterPublish != nil {
+		p.cfg.CrashAfterPublish()
+	}
+	if err := p.uow.Do(ctx, func(ctx context.Context, st app.Store) error {
+		return st.Outbox().MarkPublishedBatch(ctx, published, time.Now().UTC())
+	}); err != nil {
+		p.log.Warn("mark published failed; events may be republished", "error", err.Error(), "count", len(published))
+		return
+	}
+	for range published {
+		p.metrics.OutboxPublished()
+	}
+}
+
+func (p *OutboxPublisher) reschedule(ctx context.Context, rec app.OutboxRecord, cause error) {
+	next := time.Now().UTC().Add(p.backoff(rec.Attempts))
+	p.log.Warn("publish failed; rescheduled", "eventId", rec.EventID, "error", cause.Error(), "nextAttemptAt", next)
+	p.metrics.Retry("outbox_publish")
+	if rerr := p.uow.Do(ctx, func(ctx context.Context, st app.Store) error {
+		return st.Outbox().Reschedule(ctx, rec.EventID, next, cause.Error())
+	}); rerr != nil {
+		p.log.Warn("reschedule failed; lease will expire", "eventId", rec.EventID, "error", rerr.Error())
+	}
 }
 
 func (p *OutboxPublisher) publishOne(ctx context.Context, rec app.OutboxRecord) {
 	log := p.log.With("eventId", rec.EventID, "eventType", rec.EventType, "aggregateId", rec.AggregateID, "attempt", rec.Attempts)
 	if err := p.publisher.Publish(ctx, rec); err != nil {
-		next := time.Now().UTC().Add(p.backoff(rec.Attempts))
-		log.Warn("publish failed; rescheduled", "error", err.Error(), "nextAttemptAt", next)
-		p.metrics.Retry("outbox_publish")
-		if rerr := p.uow.Do(ctx, func(ctx context.Context, st app.Store) error {
-			return st.Outbox().Reschedule(ctx, rec.EventID, next, err.Error())
-		}); rerr != nil {
-			log.Warn("reschedule failed; lease will expire", "error", rerr.Error())
-		}
+		p.reschedule(ctx, rec, err)
 		return
 	}
 	if p.cfg.CrashAfterPublish != nil {

@@ -60,6 +60,17 @@ func (r *outboxRepo) MarkPublished(ctx context.Context, eventID uuid.UUID, now t
 	return nil
 }
 
+func (r *outboxRepo) MarkPublishedBatch(ctx context.Context, eventIDs []uuid.UUID, now time.Time) error {
+	if len(eventIDs) == 0 {
+		return nil
+	}
+	_, err := r.tx.Exec(ctx, `UPDATE outbox_events SET published_at = $2, locked_until = NULL, last_error = NULL WHERE event_id = ANY($1) AND published_at IS NULL`, eventIDs, now)
+	if err != nil {
+		return fmt.Errorf("postgres: mark published batch: %w", err)
+	}
+	return nil
+}
+
 func (r *outboxRepo) Reschedule(ctx context.Context, eventID uuid.UUID, nextAttempt time.Time, lastError string) error {
 	_, err := r.tx.Exec(ctx, `UPDATE outbox_events SET next_attempt_at = $2, locked_by = NULL, locked_until = NULL, last_error = left($3, 500) WHERE event_id = $1 AND published_at IS NULL`, eventID, nextAttempt, lastError)
 	if err != nil {

@@ -50,3 +50,6 @@ integration-race:
 
 logs:
 	docker compose logs -f app1 app2 app3
+
+load: ## Run the k6 load test against the 3 compose instances (needs `make up`)
+	docker compose --profile load run --rm k6

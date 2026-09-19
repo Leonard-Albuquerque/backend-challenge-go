@@ -102,8 +102,8 @@ Abertura com saldo positivo grava, no mesmo commit da carteira: `OPENING` (`orig
 **Outbox** (`outbox_events`): `event_id` (UUIDv7, PK), agregado, tipo, payload JSONB (snapshot imutável do envelope), `occurred_at`, `attempts`, `next_attempt_at`, `locked_by`/`locked_until` (lease), `published_at`, `last_error`. O publisher (`workers.OutboxPublisher`, em toda instância):
 
 1. `UPDATE ... WHERE event_id IN (SELECT ... WHERE published_at IS NULL AND next_attempt_at <= now AND (locked_until IS NULL OR locked_until < now) ... FOR UPDATE SKIP LOCKED) RETURNING` — claim com lease (`OUTBOX_LEASE`, 30s) e `attempts + 1`, commitado antes de publicar. Vários publishers disputam sem colisão; um lease expirado (processo morto) é reclamado por outro.
-2. `SendMessage` em `wallet-events.fifo` com `MessageGroupId = aggregateId` e `MessageDeduplicationId = eventId`.
-3. `UPDATE ... SET published_at` (mantém `locked_by` como o publisher que confirmou). Se o processo morre entre 2 e 3, o evento é republicado com o **mesmo `eventId`**: o FIFO deduplica na janela de 5 min e consumidores devem deduplicar por `eventId` além dela.
+2. `SendMessageBatch` em `wallet-events.fifo`, em lotes de até 10, com `MessageGroupId = aggregateId` e `MessageDeduplicationId = eventId`. Falha do lote inteiro cai para envios individuais; falhas por entrada são reagendadas individualmente. (O envio unitário original não acompanhava a carga — ver `loadtest/README.md`.)
+3. `UPDATE ... SET published_at` para os ids aceitos, em uma transação por lote (mantém `locked_by` como o publisher que confirmou). Se o processo morre entre 2 e 3, os eventos são republicados com o **mesmo `eventId`**: o FIFO deduplica na janela de 5 min e consumidores devem deduplicar por `eventId` além dela.
 4. Falha de publicação: `Reschedule` com backoff exponencial (`OUTBOX_BASE_BACKOFF` → `OUTBOX_MAX_BACKOFF`) e `last_error`.
 
 Métricas `wager_outbox_lag_seconds` (idade do evento pendente mais antigo) e `wager_outbox_pending` são atualizadas a cada ciclo.
@@ -161,6 +161,6 @@ Logs JSON via `slog` com `correlationId`/`messageId` injetados pelo contexto; id
 - **Mensagens com carteira inexistente** vão para a DLQ (não há como gravar a transação sem a FK); pelo HTTP respondem 422.
 - **Deduplicação downstream**: eventos podem ser republicados após crash entre publicação e confirmação; o FIFO deduplica por 5 min e consumidores devem deduplicar por `eventId`.
 - **IAM no LocalStack** não é aplicado (limitação do community); a policy está provisionada e documentada.
-- **Partidas dobradas, tracing e testes de carga** (diferenciais opcionais) não foram implementados.
+- **Partidas dobradas e tracing** (diferenciais opcionais) não foram implementados. O teste de carga está em `loadtest/`, com as ressalvas de ambiente descritas lá.
 - O *fault injection* (`CRASH_POINT`) é um hook de teste no processo real; em produção a variável deve ficar vazia.
 - O teste de falha transitória usa `statement_timeout=1ms` no DSN para simular indisponibilidade do PostgreSQL de forma portátil, em vez de derrubar o container.

@@ -254,6 +254,14 @@ O `TestMain` compila `./cmd/wager` **com `-race`** e sobe um cluster de **três 
 
 Logs de cada processo ficam em um diretório temporário impresso no início da execução (mantido em caso de falha).
 
+## Teste de carga
+
+Suíte k6 em [loadtest/](loadtest/README.md) com quatro cenários concorrentes (taxa constante, replays idempotentes, contenção em poucas carteiras e scrape do atraso da outbox) contra as três instâncias, reconciliação de todas as carteiras no fim e thresholds que falham a execução. Metodologia, ambiente e resultados estão documentados; o resumo da execução registrada fica em `loadtest/results/`.
+
+```bash
+make load
+```
+
 ## Layout
 
 ```
@@ -269,4 +277,5 @@ internal/observability  slog JSON, métricas Prometheus
 migrations/          SQL versionado (up/down)
 deploy/              realm do Keycloak, init do LocalStack
 test/integration     suíte com containers reais e múltiplos processos
+loadtest/            script k6, metodologia e resultados do teste de carga
 ```

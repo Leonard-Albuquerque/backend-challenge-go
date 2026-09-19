@@ -101,3 +101,24 @@ services:
       INSTANCE_ID: app3
     ports:
       - "8083:8080"
+
+  k6:
+    image: grafana/k6:0.54.0
+    profiles: ["load"]
+    working_dir: /loadtest
+    volumes:
+      - ./loadtest:/loadtest
+    environment:
+      BASE_URLS: http://app1:8080,http://app2:8080,http://app3:8080
+      KEYCLOAK_URL: http://keycloak:8080
+      STEADY_RPS: ${STEADY_RPS:-150}
+      DURATION: ${DURATION:-60s}
+      WALLETS: ${WALLETS:-200}
+      HOT_WALLETS: ${HOT_WALLETS:-3}
+      HOT_VUS: ${HOT_VUS:-30}
+      HOT_RPS: ${HOT_RPS:-40}
+    command: ["run", "wager.js"]
+    depends_on:
+      app1: { condition: service_healthy }
+      app2: { condition: service_healthy }
+      app3: { condition: service_healthy }

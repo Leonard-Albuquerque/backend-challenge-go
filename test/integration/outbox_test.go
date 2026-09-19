@@ -135,11 +135,16 @@ func TestOutboxPublishersCompeteAndRecover(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p2.Terminate()
+	// Insert in waves: with batch publishing a single publisher drains a
+	// burst before the other one polls, so spread the work over time.
 	var extra []uuid.UUID
 	for i := 0; i < 40; i++ {
 		id := uuid.New()
 		extra = append(extra, id)
 		insertOutboxEvent(t, id, uuid.New())
+		if i%4 == 3 {
+			time.Sleep(150 * time.Millisecond)
+		}
 	}
 	eventually(t, 40*time.Second, func() bool {
 		var n int

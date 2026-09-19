@@ -97,6 +97,7 @@ type OutboxRepository interface {
 	// Claim leases up to limit unpublished, due rows for publisherID.
 	Claim(ctx context.Context, publisherID string, now time.Time, lease time.Duration, limit int) ([]OutboxRecord, error)
 	MarkPublished(ctx context.Context, eventID uuid.UUID, now time.Time) error
+	MarkPublishedBatch(ctx context.Context, eventIDs []uuid.UUID, now time.Time) error
 	// Reschedule releases the lease and sets the next attempt.
 	Reschedule(ctx context.Context, eventID uuid.UUID, nextAttempt time.Time, lastError string) error
 	// Lag returns the age of the oldest unpublished event and the pending count.
