@@ -1,0 +1,111 @@
+{
+  "realm": "wager",
+  "enabled": true,
+  "accessTokenLifespan": 300,
+  "sslRequired": "none",
+  "roles": {
+    "realm": [
+      { "name": "provider", "description": "Game provider: may submit and query its own wagering transactions" },
+      { "name": "internal", "description": "Internal wallet service: may open, read and reconcile wallets" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "provider-a",
+      "name": "Provider A (test identity)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "provider-a-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        { "name": "providerId", "protocol": "openid-connect", "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": { "claim.name": "providerId", "claim.value": "provider-a", "jsonType.label": "String", "access.token.claim": "true", "id.token.claim": "false", "userinfo.token.claim": "false" } },
+        { "name": "audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.custom.audience": "wager-api", "access.token.claim": "true", "id.token.claim": "false" } }
+      ]
+    },
+    {
+      "clientId": "provider-b",
+      "name": "Provider B (test identity)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "provider-b-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        { "name": "providerId", "protocol": "openid-connect", "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": { "claim.name": "providerId", "claim.value": "provider-b", "jsonType.label": "String", "access.token.claim": "true", "id.token.claim": "false", "userinfo.token.claim": "false" } },
+        { "name": "audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.custom.audience": "wager-api", "access.token.claim": "true", "id.token.claim": "false" } }
+      ]
+    },
+    {
+      "clientId": "wallet-service",
+      "name": "Internal wallet service (test identity)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "wallet-service-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        { "name": "audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.custom.audience": "wager-api", "access.token.claim": "true", "id.token.claim": "false" } }
+      ]
+    },
+    {
+      "clientId": "short-lived",
+      "name": "Client with 1s tokens (expiry tests)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "short-lived-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": true,
+      "attributes": { "access.token.lifespan": "1" },
+      "protocolMappers": [
+        { "name": "providerId", "protocol": "openid-connect", "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": { "claim.name": "providerId", "claim.value": "provider-a", "jsonType.label": "String", "access.token.claim": "true" } },
+        { "name": "audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.custom.audience": "wager-api", "access.token.claim": "true" } }
+      ]
+    },
+    {
+      "clientId": "no-role",
+      "name": "Authenticated client without any role (authorization tests)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "no-role-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        { "name": "audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
+          "config": { "included.custom.audience": "wager-api", "access.token.claim": "true" } }
+      ]
+    }
+  ],
+  "users": [
+    { "username": "service-account-provider-a", "enabled": true, "serviceAccountClientId": "provider-a", "realmRoles": ["provider"] },
+    { "username": "service-account-provider-b", "enabled": true, "serviceAccountClientId": "provider-b", "realmRoles": ["provider"] },
+    { "username": "service-account-wallet-service", "enabled": true, "serviceAccountClientId": "wallet-service", "realmRoles": ["internal"] },
+    { "username": "service-account-short-lived", "enabled": true, "serviceAccountClientId": "short-lived", "realmRoles": ["provider"] },
+    { "username": "service-account-no-role", "enabled": true, "serviceAccountClientId": "no-role", "realmRoles": [] }
+  ]
+}

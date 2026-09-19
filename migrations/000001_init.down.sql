@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS outbox_events;
+DROP TABLE IF EXISTS inbox_messages;
+DROP TRIGGER IF EXISTS wallet_ledger_entries_immutable_delete ON wallet_ledger_entries;
+DROP TRIGGER IF EXISTS wallet_ledger_entries_immutable_update ON wallet_ledger_entries;
+DROP TABLE IF EXISTS wallet_ledger_entries;
+DROP TRIGGER IF EXISTS wager_transactions_forbid_delete ON wager_transactions;
+DROP TRIGGER IF EXISTS wager_transactions_guard_update ON wager_transactions;
+DROP TABLE IF EXISTS wager_transactions;
+DROP TABLE IF EXISTS wallets;
+DROP FUNCTION IF EXISTS forbid_update();
+DROP FUNCTION IF EXISTS forbid_delete();
+DROP FUNCTION IF EXISTS wager_transactions_guard();
